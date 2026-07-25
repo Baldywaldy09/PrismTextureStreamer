@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\dx11">
+      <UniqueIdentifier>{d53518ca-8785-4047-a5e1-2d42a23e2fe1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\menu">
+      <UniqueIdentifier>{30734a6b-cc14-432f-a1cc-4f1f7a196bc3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\win32">
+      <UniqueIdentifier>{7a6b0ad6-b11d-4d16-9cab-b9efd6d33049}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\dinput8">
+      <UniqueIdentifier>{baa89f27-5690-405f-b586-bc15c6b148c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\misc">
+      <UniqueIdentifier>{d83c0140-78da-4502-917a-8b2bd5e30361}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sources">
+      <UniqueIdentifier>{7a5fa8f1-5036-4b79-9b6c-904b1bfd3715}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\prism">
+      <UniqueIdentifier>{d7f31309-6618-4711-9a87-0c6ce308eed7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dx11\present.cpp">
+      <Filter>Source Files\dx11</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\menu.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="win32\win32.cpp">
+      <Filter>Source Files\win32</Filter>
+    </ClCompile>
+    <ClCompile Include="dinput8\dinput8.cpp">
+      <Filter>Source Files\dinput8</Filter>
+    </ClCompile>
+    <ClCompile Include="misc\imgui_stdlib.cpp">
+      <Filter>Source Files\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="dx11\CreateTexture2D.cpp">
+      <Filter>Source Files\dx11</Filter>
+    </ClCompile>
+    <ClCompile Include="sources\window.cpp">
+      <Filter>Source Files\sources</Filter>
+    </ClCompile>
+    <ClCompile Include="prism\memserver_texture_queue.cpp">
+      <Filter>Source Files\prism</Filter>
+    </ClCompile>
+    <ClCompile Include="prism\execute_command.cpp">
+      <Filter>Source Files\prism</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="scs_logging.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dx11\dx11.h">
+      <Filter>Source Files\dx11</Filter>
+    </ClInclude>
+    <ClInclude Include="dx11\present.h">
+      <Filter>Source Files\dx11</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\menu.h">
+      <Filter>Source Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="win32\win32.h">
+      <Filter>Source Files\win32</Filter>
+    </ClInclude>
+    <ClInclude Include="dinput8\dinput8.h">
+      <Filter>Source Files\dinput8</Filter>
+    </ClInclude>
+    <ClInclude Include="screens.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="misc\imgui_stdlib.h">
+      <Filter>Source Files\misc</Filter>
+    </ClInclude>
+    <ClInclude Include="dx11\CreateTexture2D.h">
+      <Filter>Source Files\dx11</Filter>
+    </ClInclude>
+    <ClInclude Include="sources\window.h">
+      <Filter>Source Files\sources</Filter>
+    </ClInclude>
+    <ClInclude Include="sources\content_source.h">
+      <Filter>Source Files\sources</Filter>
+    </ClInclude>
+    <ClInclude Include="prism\memserver_texture_queue.h">
+      <Filter>Source Files\prism</Filter>
+    </ClInclude>
+    <ClInclude Include="prism\prism.h">
+      <Filter>Source Files\prism</Filter>
+    </ClInclude>
+    <ClInclude Include="bmem.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="prism\execute_command.h">
+      <Filter>Source Files\prism</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
