@@ -67,3 +67,13 @@ The source uses a interface `IContentSource`, so other backends (a video file so
 1. Drop the compiled plugin DLL into your ETS2/ATS `plugins` folder (not a injected DLL)
 2. Launch the game, Ctrl+F8 to open the menu
 3. Add a screen, pick a source window, hit Apply
+
+## Contributing
+PRs and issues are welcome, keep in mind:
+
+- If a pattern scan fails to resolve on a newer patch, that's the first thing to check before assuming something else is broken. (Same with any Prism3D structures inside `prism/prism.h`)
+- DO NOT use hard coded file offsets etc, keep with using pattern scans where possible.
+- If you're adding a new `IContentSource` (video file, monitor capture, etc.), implement it against the existing interface in `sources/content_source.h`.
+- Match existing code style so diffs stay reviewable and the project isnt a mess of multiple people.
+- Test on an actual ETS2 install before opening a PR.
+
