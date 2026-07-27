@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -23,7 +23,7 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{da650ff5-85b7-4509-a8a7-951911215275}</ProjectGuid>
     <RootNamespace>PrismTextureStreamerFB</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -115,7 +115,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)Lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy "H:\repos\PrismTextureStreamerFB\x64\Debug\PrismTextureStreamerFB.dll" "H:\SteamLibrary\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins"</Command>
+      <Command>copy "H:\repos\PrismTextureStreamer\x64\Debug\PrismTextureStreamerFB.dll" "H:\SteamLibrary\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -148,6 +148,7 @@
     <ClCompile Include="misc\imgui_stdlib.cpp" />
     <ClCompile Include="prism\execute_command.cpp" />
     <ClCompile Include="prism\memserver_texture_queue.cpp" />
+    <ClCompile Include="sources\wgc_window.cpp" />
     <ClCompile Include="sources\window.cpp" />
     <ClCompile Include="win32\win32.cpp" />
   </ItemGroup>
@@ -165,7 +166,10 @@
     <ClInclude Include="screens.h" />
     <ClInclude Include="scs_logging.h" />
     <ClInclude Include="sources\content_source.h" />
+    <ClInclude Include="sources\wgc_dispatcher.h" />
+    <ClInclude Include="sources\wgc_window.h" />
     <ClInclude Include="sources\window.h" />
+    <ClInclude Include="version.h" />
     <ClInclude Include="win32\win32.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -6,6 +6,7 @@
 #include "execute_command.h"
 #include "memserver_texture_queue.h"
 
+#pragma pack(push, 1)
 namespace prism {
     inline bool init() {
         if (!execute_command::get())
@@ -148,3 +149,4 @@ namespace prism {
     };
     static_assert(sizeof(list_node_t<>) == 0x18);
 }
+#pragma pack(pop)

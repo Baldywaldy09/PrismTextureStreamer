@@ -10,38 +10,68 @@ using namespace scs_logging;
 
 struct FindWindowData {
     const char* exeName;
+    const char* windowTitle;
     HWND result;
 };
-HWND FindWindowByExeName(const char* exeName)
+static HWND FindWindowByNameAndTitle(const char* exeName, const char* windowTitle)
 {
-    FindWindowData data{ exeName, nullptr };
+    FindWindowData data{ exeName, windowTitle, nullptr };
 
     EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
         auto* data = reinterpret_cast<FindWindowData*>(lParam);
 
+        if (!IsWindowVisible(hwnd))
+            return TRUE;
+
+        LONG exStyle = GetWindowLongA(hwnd, GWL_EXSTYLE);
+        if (exStyle & WS_EX_TOOLWINDOW)
+            return TRUE;
+
+        bool titleMatch{};
+        if (data->windowTitle) {
+            LRESULT lengthResult = 0;
+            if (!SendMessageTimeoutA(hwnd, WM_GETTEXTLENGTH, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, (PDWORD_PTR)&lengthResult)) {
+                return TRUE; // didn't respond in time - skip it
+            }
+            int titleLen = static_cast<int>(lengthResult);
+
+            if (titleLen != 0)
+            {
+                std::string windowTitle = std::string(titleLen + 1, '\0');
+                GetWindowTextA(hwnd, windowTitle.data(), titleLen + 1);
+                windowTitle.resize(titleLen);
+
+                if (windowTitle == std::string_view(data->windowTitle))
+                    titleMatch = true; // Title matches, but so must the exe name
+            }
+            else
+                return TRUE; // Window title was given as a search filter, so if no title, skip
+        }
+
         DWORD pid = 0;
         GetWindowThreadProcessId(hwnd, &pid);
-        if (!pid) return TRUE;
 
         HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if (!hProc) return TRUE;
 
-        char path[MAX_PATH];
+        char path[MAX_PATH]{};
         DWORD size = MAX_PATH;
-        bool ok = QueryFullProcessImageNameA(hProc, 0, path, &size);
+        QueryFullProcessImageNameA(hProc, 0, path, &size);
         CloseHandle(hProc);
-        if (!ok) return TRUE;
 
-        // grab just the filename part
-        const char* fileName = strrchr(path, '\\');
-        fileName = fileName ? fileName + 1 : path;
+        std::string_view applicationName(path);
+        auto pos = applicationName.rfind('\\');
+        applicationName = pos != std::string::npos ? applicationName.substr(pos + 1) : applicationName;
 
-        if (_stricmp(fileName, data->exeName) == 0) { // comare case insensitive
+        bool exeMatch = applicationName == std::string_view(data->exeName);
+
+        if (exeMatch && (!data->windowTitle || titleMatch)) {
             data->result = hwnd;
-            return FALSE; // found, stop checking windows
+            return FALSE; // Exe matches, and there is either no title, or the title matched
         }
+
         return TRUE;
-    }, reinterpret_cast<LPARAM>(&data));
+        }, reinterpret_cast<LPARAM>(&data));
 
     return data.result;
 }
@@ -52,6 +82,7 @@ namespace sources {
     {
     private:
         char* m_appname{};
+        char* m_apptitle{};
         HWND m_hwnd{};
         std::atomic<uint32_t> m_width{};
         std::atomic<uint32_t> m_height{};
@@ -90,7 +121,8 @@ namespace sources {
                 const auto frameInterval = std::chrono::milliseconds(1000 / m_framerate);
                 auto frameStart = std::chrono::steady_clock::now();
 
-                if (!IsWindow(m_hwnd)) { scs_log(0, "[WindowSource] Target window '%s' no longer exists, stopping capture for this window", m_appname); break; }
+                if (!IsWindow(m_hwnd)) { scs_log(0, "[WindowSource] Target window %s (%s) no longer exists, stopping capture for this window", m_appname, m_apptitle ? m_apptitle : "NO_TITLE"); break; }
+                if (IsIconic(m_hwnd)) { std::this_thread::sleep_for(frameInterval); continue; } // minimized
 
                 RECT rect;
                 GetClientRect(m_hwnd, &rect);
@@ -110,7 +142,13 @@ namespace sources {
                     SelectObject(memDC, bitmap);
                 }
 
-                PrintWindow(m_hwnd, memDC, 2 /* PW_RENDERFULLCONTENT */);
+                BOOL pwOk = PrintWindow(m_hwnd, memDC, 2 /* PW_RENDERFULLCONTENT */);
+                if (!pwOk)
+                {
+                    scs_log(0, "[WindowSource] PrintWindow failed for %s (%s), err=%lu", m_appname, m_apptitle ? m_apptitle : "NO_TITLE", GetLastError());
+                    std::this_thread::sleep_for(frameInterval);
+                    continue;
+                }
                 GetDIBits(memDC, bitmap, 0, height, bgraScratch.data(), &bmi, DIB_RGB_COLORS);
 
                 {
@@ -144,15 +182,20 @@ namespace sources {
             DeleteDC(memDC);
             ReleaseDC(m_hwnd, windowDC);
 
-            scs_log(0, "[WindowSource] Source for %s has stopped", m_appname);
+            scs_log(0, "[WindowSource] Source for %s (%s) has stopped", m_appname, m_apptitle ? m_apptitle : "NO_TITLE");
         }
 
     public:
-        explicit WindowSource(const char* application_name)
+        explicit WindowSource(const char* application_name, const char* application_title)
         {
             // Create our own ownership
             m_appname = new char[strlen(application_name) + 1]{};
             strcpy(m_appname, application_name);
+
+            if (application_title) {
+                m_apptitle = new char[strlen(application_title) + 1] {};
+                strcpy(m_apptitle, application_title);
+            }
         }
         ~WindowSource() override
         {
@@ -160,25 +203,19 @@ namespace sources {
             if (m_thread.joinable()) m_thread.join();
 
             if (m_appname) delete[] m_appname;
+            if (m_apptitle) delete[] m_apptitle;
         }
 
 
         bool Start(uint8_t framerate)
         {
             m_framerate = framerate;
-            m_hwnd = FindWindowByExeName(m_appname);
-            if (!m_hwnd) { scs_log(2, "[WindowSource] Application %s not found at source startup", m_appname); return false; }
-
-            RECT rect;
-            GetClientRect(m_hwnd, &rect);
-            m_width = rect.right - rect.left;
-            m_height = rect.bottom - rect.top;
-
-            if (m_width == 0 || m_height == 0) { scs_log(2, "[WindowSource] Application %s has zero client area", m_appname); return false; }
+            m_hwnd = FindWindowByNameAndTitle(m_appname, m_apptitle);
+            if (!m_hwnd) { scs_log(2, "[WindowSource] Application %s (%s) not found at source startup", m_appname, m_apptitle ? m_apptitle : "NO_TITLE"); return false; }
 
             m_thread = std::thread(&WindowSource::CaptureLoop, this);
 
-            scs_log(0, "[WindowSource] Source for %s has started", m_appname);
+            scs_log(0, "[WindowSource] Source for %s (%s) has started", m_appname, m_apptitle ? m_apptitle : "NO_TITLE");
             return true;
         }
 
@@ -200,9 +237,9 @@ namespace sources {
     };
 
 
-	std::unique_ptr<IContentSource> CreateWindowSource(const char* application_name, uint8_t framerate)
+	std::unique_ptr<IContentSource> CreateWindowSource(const char* application_name, const char* application_title, uint8_t framerate)
 	{
-		auto src = std::make_unique<WindowSource>(application_name);
+		auto src = std::make_unique<WindowSource>(application_name, application_title);
 		if (!src->Start(framerate)) return nullptr;
 		return src;
 	}

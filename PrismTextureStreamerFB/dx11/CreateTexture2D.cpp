@@ -14,49 +14,51 @@ static CreateTexture2D_t CreateTexture2D_Original = nullptr;
 
 HRESULT HookedCreateTexture2D(ID3D11Device* pDevice, const D3D11_TEXTURE2D_DESC* pDesc, const D3D11_SUBRESOURCE_DATA* pInitialData, ID3D11Texture2D** ppTexture2D)
 {
-    std::lock_guard<std::mutex> lock(g_screens_mutex);
+    if (!g_screen_source_creation_in_progress.load()) {
+        std::lock_guard<std::mutex> lock(g_screens_mutex);
 
-    for (screen_t& screen : g_screens)
-    {
-        if (!screen.source.get()) continue; // no source, cant use this
-
-        if (!pDesc) continue;
-        if (pDesc->Width  != screen.override_texture_size_w) continue;
-        if (pDesc->Height != screen.override_texture_size_h) continue;
-        if (pDesc->Format != DXGI_FORMAT_BC3_UNORM) continue;
-        if (pDesc->Usage != D3D11_USAGE_DEFAULT) continue;
-        if (pDesc->BindFlags != D3D11_BIND_SHADER_RESOURCE) continue;
-        if (pInitialData) continue;
-        if (pDesc->MipLevels != 1) continue; // Dynamic textures require exactly 1 mip
-
-
-        D3D11_TEXTURE2D_DESC modifiedDesc = *pDesc;
-        modifiedDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        modifiedDesc.Usage = D3D11_USAGE_DYNAMIC;
-        modifiedDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        modifiedDesc.MiscFlags = 0;
-        modifiedDesc.Width = screen.targetLiveTextureWidth;
-        modifiedDesc.Height = screen.targetLiveTextureHeight;
-
-        HRESULT hr = CreateTexture2D_Original(pDevice, &modifiedDesc, pInitialData, ppTexture2D);
-        if (SUCCEEDED(hr) && ppTexture2D && *ppTexture2D)
+        for (screen_t& screen : g_screens)
         {
-            if (screen.liveTexture) screen.liveTexture->Release();
-            if (screen.immediateContext) screen.immediateContext->Release();
+            if (!screen.source.get()) continue; // no source, cant use this
 
-            screen.liveTextureWidth = modifiedDesc.Width;
-            screen.liveTextureHeight = modifiedDesc.Height;
+            if (!pDesc) continue;
+            if (pDesc->Width != screen.override_texture_size_w) continue;
+            if (pDesc->Height != screen.override_texture_size_h) continue;
+            if (pDesc->Format != DXGI_FORMAT_BC3_UNORM) continue;
+            if (pDesc->Usage != D3D11_USAGE_DEFAULT) continue;
+            if (pDesc->BindFlags != D3D11_BIND_SHADER_RESOURCE) continue;
+            if (pInitialData) continue;
+            if (pDesc->MipLevels != 1) continue; // Dynamic textures require exactly 1 mip
 
-            screen.liveTexture = *ppTexture2D;
-            screen.liveTexture->AddRef(); // own a ref independent of the games
-            pDevice->GetImmediateContext(&screen.immediateContext);
 
-            scs_log(0, "[dx11::create_texture_2d] matched texture '%s'", screen.original_texture.c_str());
+            D3D11_TEXTURE2D_DESC modifiedDesc = *pDesc;
+            modifiedDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            modifiedDesc.Usage = D3D11_USAGE_DYNAMIC;
+            modifiedDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            modifiedDesc.MiscFlags = 0;
+            modifiedDesc.Width = screen.targetLiveTextureWidth;
+            modifiedDesc.Height = screen.targetLiveTextureHeight;
+
+            HRESULT hr = CreateTexture2D_Original(pDevice, &modifiedDesc, pInitialData, ppTexture2D);
+            if (SUCCEEDED(hr) && ppTexture2D && *ppTexture2D)
+            {
+                if (screen.liveTexture) screen.liveTexture->Release();
+                if (screen.immediateContext) screen.immediateContext->Release();
+
+                screen.liveTextureWidth = modifiedDesc.Width;
+                screen.liveTextureHeight = modifiedDesc.Height;
+
+                screen.liveTexture = *ppTexture2D;
+                screen.liveTexture->AddRef(); // own a ref independent of the games
+                pDevice->GetImmediateContext(&screen.immediateContext);
+
+                scs_log(0, "[dx11::create_texture_2d] matched texture '%s'", screen.original_texture.c_str());
+            }
+            else {
+                scs_log(2, "[dx11::create_texture_2d] rewrite of %s FAILED, hr=0x%08X", screen.original_texture.c_str(), hr);
+            }
+            return hr;
         }
-        else {
-            scs_log(2, "[dx11::create_texture_2d] rewrite of %s FAILED, hr=0x%08X", screen.original_texture.c_str(), hr);
-        }
-        return hr;
     }
 
     return CreateTexture2D_Original(pDevice, pDesc, pInitialData, ppTexture2D);

@@ -2,6 +2,9 @@
 #include <scs_sdk/scssdk_telemetry.h>
 #include "scs_logging.h"
 
+#include "version.h"
+
+#include "sources/wgc_dispatcher.h"
 #include <MinHook/MinHook.h>
 #include "bmem.h"
 #include "screens.h"
@@ -127,7 +130,7 @@ SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info
 #pragma comment( linker, "/export:scs_telemetry_init=scs_telemetry_init" )
 SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_init_params_t* const params)
 {
-    scs_logging::init(params, "PrismTextureStreamer");
+    scs_logging::init(params, "PrismTextureStreamer v" + std::string(g_version));
     scs_log(0, "Starting PrismTextureStreamer | By: Baldy09");
 
     const scs_telemetry_init_params_v101_t* version_params = reinterpret_cast<const scs_telemetry_init_params_v101_t*>(params);
@@ -168,6 +171,7 @@ SCSAPI_VOID scs_telemetry_shutdown()
         g_screens.clear(); // Stops the sources
     }
 
+    sources::WgcDispatcher::Instance().Stop();
 
     dx11::shutdown();
     win32::shutdown();

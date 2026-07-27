@@ -2,6 +2,8 @@
 #include <d3d11.h>
 #include <map>
 
+#include "../version.h"
+
 #include "../scs_logging.h"
 using namespace scs_logging;
 
@@ -16,6 +18,7 @@ using namespace scs_logging;
 
 #include "../screens.h"
 #include "../sources/window.h"
+#include "../sources/wgc_window.h"
 
 
 static bool menu_visible{};
@@ -40,7 +43,8 @@ void on_frame()
 
 
 	if (menu_visible) {
-		ImGui::Begin("Prism3D Texture Streamer");
+		ImGui::SetNextWindowSizeConstraints(ImVec2(584, 208), ImVec2(FLT_MAX, FLT_MAX));
+		ImGui::Begin(("Prism3D Texture Streamer v" + std::string(g_version)).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize);
 
 		static bool unsavedChanges = false;
 		static bool hasGps = false;
@@ -124,7 +128,7 @@ void on_frame()
 
 
 
-		std::map<std::string, std::string> applications; // application name, window title
+		std::map<std::string, std::string> applications; // window title, application name
 		EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
 			auto* applications = reinterpret_cast<std::map<std::string, std::string>*>(lParam);
 
@@ -168,8 +172,10 @@ void on_frame()
 			auto pos = applicationName.rfind('\\');
 			applicationName = pos != std::string::npos ? applicationName.substr(pos + 1) : applicationName;
 
-			if (!hasTitle) windowTitle = applicationName;
-			(*applications)[applicationName] = windowTitle;
+			if (!hasTitle || windowTitle.empty() || windowTitle == "")
+				windowTitle = applicationName;
+
+			(*applications)[windowTitle] = applicationName;
 
 			return TRUE;
 		}, reinterpret_cast<LPARAM>(&applications));
@@ -249,6 +255,7 @@ void on_frame()
 					ImGui::SetNextItemWidth(80.0f);
 					if (ImGui::InputScalar("##res_h", ImGuiDataType_U32, &screen.targetLiveTextureHeight)) unsavedChanges = true;
 
+					ImGui::BeginDisabled(!screen.legacyCapture);
 					ImGui::Text("Framerate");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(160.0f);
@@ -256,8 +263,15 @@ void on_frame()
 					if (ImGui::SliderScalar("##target_fps", ImGuiDataType_U8, &screen.framerate, &fps_min, &fps_max) && screen.source.get()) {
 						screen.source->SetFramerate(screen.framerate);
 					}
+					ImGui::EndDisabled();
 
-
+					ImGui::Checkbox("Legacy Capture", &screen.legacyCapture);
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::BeginTooltip();
+						ImGui::Text("Not Recommended | Only use if capture fails");
+						ImGui::EndTooltip();
+					}
 
 					// Nothing can be selected without a source (handles for application closing)
 					if (!screen.source.get()) {
@@ -265,15 +279,16 @@ void on_frame()
 						screen.source_application_name.clear();
 					}
 
-					const char* preview = screen.source_application_display_name.empty() ? "Select Source..." : screen.source_application_display_name.c_str();
+					const char* preview = screen.source_application_name.empty() ? "Select Source..." : screen.source_application_name.c_str();
+
 					bool changed = false;
 					if (ImGui::BeginCombo("##appcombo", preview))
 					{
 						int i = 0;
-						for (const auto& [application, title] : applications) {
-							bool selected = (application == screen.source_application_name);
+						for (const auto& [title, application] : applications) {
+							bool selected = (title == screen.source_application_display_name) ? true : ((application == screen.source_application_name) ? true : false);
 
-							if (ImGui::Selectable((title + "##" + std::to_string(i)).c_str(), selected)) {
+							if (ImGui::Selectable(("[" + application + "] " + title + "##" + std::to_string(i)).c_str(), selected)) {
 								screen.source_application_name = application;
 								screen.source_application_display_name = title;
 								changed = true;
@@ -288,13 +303,23 @@ void on_frame()
 					}
 
 					if (changed) {
-						screen.source = sources::CreateWindowSource(screen.source_application_name.c_str());
+						g_screen_source_creation_in_progress = true;
+						screen.source.reset(); // Destroy before construct
+
+						if (screen.legacyCapture) {
+							screen.source = sources::CreateWindowSource(screen.source_application_name.c_str(), screen.source_application_display_name.c_str());
+						}
+						else {
+							screen.source = sources::CreateWgcWindowSource(screen.source_application_name.c_str(), screen.source_application_display_name.c_str());
+						}
 
 						if (!screen.source.get()) {
 							screen.source_application_display_name.clear();
 							screen.source_application_name.clear();
 							ImGui::OpenPopup("Source Error");
 						}
+
+						g_screen_source_creation_in_progress = false;
 					}
 
 					if (ImGui::BeginPopupModal("Source Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {

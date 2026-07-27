@@ -28,6 +28,7 @@ struct screen_t
 	std::string source_application_display_name;
 	std::unique_ptr<IContentSource> source;
 	std::vector<uint8_t> frameScratch;
+	bool legacyCapture = false;
 	bool flipVertical = true;
 
 	ID3D11Texture2D* liveTexture{};
@@ -44,5 +45,6 @@ struct screen_t
 	uint32_t liveTextureHeight{};
 };
 
+inline std::atomic<bool> g_screen_source_creation_in_progress{}; // Mainly for WGC to prevent deadlock on create texture 2d
 inline std::mutex g_screens_mutex;
 inline std::vector<screen_t> g_screens;
