@@ -115,7 +115,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)Lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy "H:\repos\PrismTextureStreamer\x64\Debug\PrismTextureStreamerFB.dll" "H:\SteamLibrary\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins"</Command>
+      <Command>copy "$(OutputPath)PrismTextureStreamerFB.dll" "H:\SteamLibrary\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
