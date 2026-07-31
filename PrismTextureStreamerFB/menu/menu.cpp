@@ -20,8 +20,18 @@ using namespace scs_logging;
 #include "../sources/window.h"
 #include "../sources/wgc_window.h"
 
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 
 static bool menu_visible{};
+
+static bool IsWindowCloaked(HWND hwnd)
+{
+	BOOL cloaked = FALSE;
+	HRESULT hr = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+	return SUCCEEDED(hr) && cloaked != FALSE;
+}
+
 void on_frame()
 {
 	static bool wasPressed = false;
@@ -138,6 +148,9 @@ void on_frame()
 			LONG exStyle = GetWindowLongA(hwnd, GWL_EXSTYLE);
 			if (exStyle & WS_EX_TOOLWINDOW)
 				return TRUE;
+
+			if (IsWindowCloaked(hwnd))
+				return TRUE; // skip any windows that are not currently being rendered by the system
 
 			std::string windowTitle;
 			bool hasTitle{};
