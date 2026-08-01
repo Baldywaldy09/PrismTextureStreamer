@@ -4,5 +4,5 @@
 #include <memory>
 
 namespace sources {
-	std::unique_ptr<IContentSource> CreateWgcWindowSource(const char* application_name, const char* window_title = nullptr);
+	std::unique_ptr<IContentSource> CreateWgcWindowSource(HWND application_hwnd, const char* application_title = nullptr);
 }

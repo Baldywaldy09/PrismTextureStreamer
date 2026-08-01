@@ -23,13 +23,29 @@ using namespace scs_logging;
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
 
-static bool menu_visible{};
-
-static bool IsWindowCloaked(HWND hwnd)
+static bool IsWindowCloaked(HWND application_hwnd)
 {
 	BOOL cloaked = FALSE;
-	HRESULT hr = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+	HRESULT hr = DwmGetWindowAttribute(application_hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
 	return SUCCEEDED(hr) && cloaked != FALSE;
+}
+
+struct window_entry_t
+{
+	std::string applicationName;
+	HWND application_hwnd{};
+};
+
+static bool menu_visible{};
+static void set_menu_visible(bool visible)
+{
+	menu_visible = visible;
+	dinput8::set_mouse(menu_visible);
+
+	if (ImGui::GetCurrentContext()) {
+		ImGuiIO* io = &ImGui::GetIO();
+		if (io) io->MouseDrawCursor = menu_visible;
+	}
 }
 
 void on_frame()
@@ -41,16 +57,9 @@ void on_frame()
 	bool isPressed = ctrlDown && f8Down;
 
 	if (isPressed && !wasPressed) {
-		menu_visible = !menu_visible;
-		dinput8::set_mouse(menu_visible);
-
-		if (ImGui::GetCurrentContext()) {
-			ImGuiIO* io = &ImGui::GetIO();
-			if (io) io->MouseDrawCursor = menu_visible;
-		}
+		set_menu_visible(!menu_visible);
 	}
 	wasPressed = isPressed;
-
 
 	if (menu_visible) {
 		ImGui::SetNextWindowSizeConstraints(ImVec2(584, 208), ImVec2(FLT_MAX, FLT_MAX));
@@ -130,38 +139,37 @@ void on_frame()
 
 			justSaved = true;
 			unsavedChanges = false;
+
+			set_menu_visible(false);
 		}
 		ImGui::EndDisabled();
 
 		if (unsavedChanges || justSaved) ImGui::PopStyleColor(3);
 
+		std::map<std::string, window_entry_t> applications; // window title, application name, application hwnd}
+		EnumWindows([](HWND application_hwnd, LPARAM lParam) -> BOOL {
+			auto* applications = reinterpret_cast<std::map<std::string, window_entry_t>*>(lParam);
 
-
-
-		std::map<std::string, std::string> applications; // window title, application name
-		EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-			auto* applications = reinterpret_cast<std::map<std::string, std::string>*>(lParam);
-
-			if (!IsWindowVisible(hwnd))
+			if (!IsWindowVisible(application_hwnd))
 				return TRUE;
 
-			LONG exStyle = GetWindowLongA(hwnd, GWL_EXSTYLE);
+			LONG exStyle = GetWindowLongA(application_hwnd, GWL_EXSTYLE);
 			if (exStyle & WS_EX_TOOLWINDOW)
 				return TRUE;
 
-			if (IsWindowCloaked(hwnd))
+			if (IsWindowCloaked(application_hwnd))
 				return TRUE; // skip any windows that are not currently being rendered by the system
 
 			std::string windowTitle;
 			bool hasTitle{};
 
-			int titleLen = GetWindowTextLengthA(hwnd);
+			int titleLen = GetWindowTextLengthA(application_hwnd);
 			if (titleLen != 0)
 			{
 				hasTitle = true;
 
 				windowTitle = std::string(titleLen + 1, '\0');
-				GetWindowTextA(hwnd, windowTitle.data(), titleLen + 1);
+				GetWindowTextA(application_hwnd, windowTitle.data(), titleLen + 1);
 				windowTitle.resize(titleLen);
 			}
 
@@ -169,10 +177,10 @@ void on_frame()
 
 			std::string applicationName;
 
-			DWORD pid = 0;
-			GetWindowThreadProcessId(hwnd, &pid);
+			DWORD applicationPID = 0;
+			GetWindowThreadProcessId(application_hwnd, &applicationPID);
 
-			HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+			HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, applicationPID);
 			if (!hProc) return TRUE; // Continue, dont add if no process name
 
 			char path[MAX_PATH]{};
@@ -188,10 +196,10 @@ void on_frame()
 			if (!hasTitle || windowTitle.empty() || windowTitle == "")
 				windowTitle = applicationName;
 
-			(*applications)[windowTitle] = applicationName;
+			(*applications)[windowTitle] = window_entry_t{ applicationName, application_hwnd };
 
 			return TRUE;
-		}, reinterpret_cast<LPARAM>(&applications));
+			}, reinterpret_cast<LPARAM>(&applications));
 
 
 		{
@@ -290,6 +298,7 @@ void on_frame()
 					if (!screen.source.get()) {
 						screen.source_application_display_name.clear();
 						screen.source_application_name.clear();
+						screen.source_application_hwnd = nullptr;
 					}
 
 					const char* preview = screen.source_application_name.empty() ? "Select Source..." : screen.source_application_name.c_str();
@@ -298,12 +307,13 @@ void on_frame()
 					if (ImGui::BeginCombo("##appcombo", preview))
 					{
 						int i = 0;
-						for (const auto& [title, application] : applications) {
-							bool selected = (title == screen.source_application_display_name) ? true : ((application == screen.source_application_name) ? true : false);
+						for (const auto& [title, entry] : applications) {
+							bool selected = (entry.application_hwnd == (HWND)screen.source_application_hwnd);
 
-							if (ImGui::Selectable(("[" + application + "] " + title + "##" + std::to_string(i)).c_str(), selected)) {
-								screen.source_application_name = application;
+							if (ImGui::Selectable(("[" + entry.applicationName + "] " + title + "##" + std::to_string(i)).c_str(), selected)) {
+								screen.source_application_name = entry.applicationName;
 								screen.source_application_display_name = title;
+								screen.source_application_hwnd = (void*)entry.application_hwnd;
 								changed = true;
 							}
 
@@ -320,15 +330,16 @@ void on_frame()
 						screen.source.reset(); // Destroy before construct
 
 						if (screen.legacyCapture) {
-							screen.source = sources::CreateWindowSource(screen.source_application_name.c_str(), screen.source_application_display_name.c_str());
+							screen.source = sources::CreateWindowSource((HWND)screen.source_application_hwnd, screen.source_application_display_name.c_str());
 						}
 						else {
-							screen.source = sources::CreateWgcWindowSource(screen.source_application_name.c_str(), screen.source_application_display_name.c_str());
+							screen.source = sources::CreateWgcWindowSource((HWND)screen.source_application_hwnd, screen.source_application_display_name.c_str());
 						}
 
 						if (!screen.source.get()) {
 							screen.source_application_display_name.clear();
 							screen.source_application_name.clear();
+							screen.source_application_hwnd = nullptr;
 							ImGui::OpenPopup("Source Error");
 						}
 
