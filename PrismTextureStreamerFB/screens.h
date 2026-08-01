@@ -24,6 +24,7 @@ struct screen_t
 	uint32_t override_texture_size_w{}; // 64
 	uint32_t override_texture_size_h{}; // 2048
 
+	void* source_application_hwnd{};
 	std::string source_application_name;
 	std::string source_application_display_name;
 	std::unique_ptr<IContentSource> source;

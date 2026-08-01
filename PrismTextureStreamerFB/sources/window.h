@@ -4,5 +4,5 @@
 #include <memory>
 
 namespace sources {
-	std::unique_ptr<IContentSource> CreateWindowSource(const char* application_name, const char* application_title = nullptr, uint8_t framerate = 30);
+	std::unique_ptr<IContentSource> CreateWindowSource(HWND application_hwnd, const char* application_title = nullptr, uint8_t framerate = 30);
 }
