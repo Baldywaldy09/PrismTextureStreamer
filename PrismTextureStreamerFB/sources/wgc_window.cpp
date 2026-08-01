@@ -220,14 +220,14 @@ namespace sources {
                 });
 
 
-            scs_log(0, "[WgcWindowSource] Source for (%s) has stopped", m_apptitle ? m_apptitle : "NO_TITLE");
+            scs_log(0, "[WgcWindowSource] Source for has stopped", m_apptitle ? m_apptitle : "NO_TITLE");
             if (m_apptitle) delete[] m_apptitle;
         }
 
         bool Start()
         {
             try {
-                if (!IsWindow(m_apphwnd)) { scs_log(2, "[WgcWindowSource] Application %s (%s) not found at source startup", m_apptitle ? m_apptitle : "NO_TITLE"); return false; }
+                if (!IsWindow(m_apphwnd)) { scs_log(2, "[WgcWindowSource] Application %s not found at source startup", m_apptitle ? m_apptitle : "NO_TITLE"); return false; }
 
                 m_d3dDevice = CreateWgcCaptureDevice(m_apphwnd);
 
@@ -253,7 +253,7 @@ namespace sources {
                 m_session.StartCapture();
                 //m_session.IsBorderRequired(false); // Disable the windows orange border from capturing
 
-                scs_log(0, "[WgcWindowSource] Source for %s (%s) has started", m_apptitle ? m_apptitle : "NO_TITLE");
+                scs_log(0, "[WgcWindowSource] Source for %s has started", m_apptitle ? m_apptitle : "NO_TITLE");
 
                 return true;
             }

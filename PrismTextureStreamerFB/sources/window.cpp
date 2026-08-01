@@ -51,7 +51,7 @@ namespace sources {
                 const auto frameInterval = std::chrono::milliseconds(1000 / m_framerate);
                 auto frameStart = std::chrono::steady_clock::now();
 
-                if (!IsWindow(m_apphwnd)) { scs_log(0, "[WindowSource] Target window %s (%s) no longer exists, stopping capture for this window", m_apptitle ? m_apptitle : "NO_TITLE"); break; }
+                if (!IsWindow(m_apphwnd)) { scs_log(0, "[WindowSource] Target window %s no longer exists, stopping capture for this window", m_apptitle ? m_apptitle : "NO_TITLE"); break; }
                 if (IsIconic(m_apphwnd)) { std::this_thread::sleep_for(frameInterval); continue; } // minimized
 
                 RECT rect;
@@ -75,7 +75,7 @@ namespace sources {
                 BOOL pwOk = PrintWindow(m_apphwnd, memDC, 2 /* PW_RENDERFULLCONTENT */);
                 if (!pwOk)
                 {
-                    scs_log(0, "[WindowSource] PrintWindow failed for %s (%s), err=%lu", m_apptitle ? m_apptitle : "NO_TITLE", GetLastError());
+                    scs_log(0, "[WindowSource] PrintWindow failed for %s, err=%lu", m_apptitle ? m_apptitle : "NO_TITLE", GetLastError());
                     std::this_thread::sleep_for(frameInterval);
                     continue;
                 }
@@ -112,7 +112,7 @@ namespace sources {
             DeleteDC(memDC);
             ReleaseDC(m_apphwnd, windowDC);
 
-            scs_log(0, "[WindowSource] Source for %s (%s) has stopped", m_apptitle ? m_apptitle : "NO_TITLE");
+            scs_log(0, "[WindowSource] Source for %s has stopped", m_apptitle ? m_apptitle : "NO_TITLE");
         }
 
     public:
@@ -137,11 +137,11 @@ namespace sources {
         bool Start(uint8_t framerate)
         {
             m_framerate = framerate;
-            if (!IsWindow(m_apphwnd)) { scs_log(2, "[WindowSource] Application %s (%s) not found at source startup", m_apptitle ? m_apptitle : "NO_TITLE"); return false; }
+            if (!IsWindow(m_apphwnd)) { scs_log(2, "[WindowSource] Application %s not found at source startup", m_apptitle ? m_apptitle : "NO_TITLE"); return false; }
 
             m_thread = std::thread(&WindowSource::CaptureLoop, this);
 
-            scs_log(0, "[WindowSource] Source for %s (%s) has started", m_apptitle ? m_apptitle : "NO_TITLE");
+            scs_log(0, "[WindowSource] Source for %s has started", m_apptitle ? m_apptitle : "NO_TITLE");
             return true;
         }
 
