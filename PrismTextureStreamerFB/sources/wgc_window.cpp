@@ -220,7 +220,7 @@ namespace sources {
                 });
 
 
-            scs_log(0, "[WgcWindowSource] Source for has %s stopped", m_apptitle ? m_apptitle : "NO_TITLE");
+            scs_log(0, "[WgcWindowSource] Source for %s has stopped", m_apptitle ? m_apptitle : "NO_TITLE");
             if (m_apptitle) delete[] m_apptitle;
         }
 
