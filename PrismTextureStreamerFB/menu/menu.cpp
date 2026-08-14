@@ -174,7 +174,6 @@ void on_frame()
 			}
 
 
-
 			std::string applicationName;
 
 			DWORD applicationPID = 0;
@@ -286,6 +285,12 @@ void on_frame()
 					}
 					ImGui::EndDisabled();
 
+					// Brightness slider (0.0 = black, 1.0 = normal, 2.0 = double bright)
+					ImGui::Text("Brightness");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(160.0f);
+					if (ImGui::SliderFloat("##brightness", &screen.brightness, 0.0f, 2.0f)) unsavedChanges = true;
+
 					ImGui::Checkbox("Legacy Capture", &screen.legacyCapture);
 					if (ImGui::IsItemHovered())
 					{
@@ -377,7 +382,6 @@ void on_frame()
 				g_screens.erase(g_screens.begin() + *it);
 			}
 		}
-
 
 
 
