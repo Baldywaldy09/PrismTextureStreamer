@@ -32,6 +32,9 @@ struct screen_t
 	bool legacyCapture = false;
 	bool flipVertical = true;
 
+	// Per-screen brightness multiplier. 1.0 = unchanged. Values <1.0 darken, >1.0 brighten.
+	float brightness = 1.0f;
+
 	ID3D11Texture2D* liveTexture{};
 	ID3D11DeviceContext* immediateContext{};
 
