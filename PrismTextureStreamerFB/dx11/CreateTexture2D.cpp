@@ -3,6 +3,9 @@
 
 #include <MinHook/MinHook.h>
 
+#include <algorithm>
+#include <cmath>
+
 #include "../scs_logging.h"
 using namespace scs_logging;
 
@@ -94,6 +97,9 @@ void new_frame()
         const uint8_t* src = screen.frameScratch.data();
         uint8_t* dstBase = static_cast<uint8_t*>(mapped.pData);
 
+        // pre-check if brightness is essentially no-op
+        const bool no_brightness_change = std::fabs(screen.brightness - 1.0f) < 0.0005f;
+
         for (UINT y = 0; y < dstHeight; ++y)
         {
             const UINT srcY = static_cast<UINT>(static_cast<uint64_t>(y) * srcHeight / dstHeight);
@@ -102,12 +108,48 @@ void new_frame()
             uint8_t* dstRowPtr = dstBase + static_cast<size_t>(dstRow) * mapped.RowPitch;
 
             if (srcWidth == dstWidth) {
-                memcpy(dstRowPtr, srcRow, static_cast<size_t>(dstWidth) * 4);
+                if (no_brightness_change) {
+                    memcpy(dstRowPtr, srcRow, static_cast<size_t>(dstWidth) * 4);
+                    continue;
+                }
+                // apply brightness per pixel
+                for (UINT x = 0; x < dstWidth; ++x) {
+                    const uint8_t sR = srcRow[x * 4 + 0];
+                    const uint8_t sG = srcRow[x * 4 + 1];
+                    const uint8_t sB = srcRow[x * 4 + 2];
+                    const uint8_t sA = srcRow[x * 4 + 3];
+
+                    uint8_t dR = static_cast<uint8_t>(std::min(255, static_cast<int>(sR * screen.brightness + 0.5f)));
+                    uint8_t dG = static_cast<uint8_t>(std::min(255, static_cast<int>(sG * screen.brightness + 0.5f)));
+                    uint8_t dB = static_cast<uint8_t>(std::min(255, static_cast<int>(sB * screen.brightness + 0.5f)));
+
+                    dstRowPtr[x * 4 + 0] = dR;
+                    dstRowPtr[x * 4 + 1] = dG;
+                    dstRowPtr[x * 4 + 2] = dB;
+                    dstRowPtr[x * 4 + 3] = sA;
+                }
                 continue;
             }
             for (UINT x = 0; x < dstWidth; ++x) {
                 const UINT srcX = static_cast<UINT>(static_cast<uint64_t>(x) * srcWidth / dstWidth);
-                memcpy(dstRowPtr + static_cast<size_t>(x) * 4, srcRow + static_cast<size_t>(srcX) * 4, 4);
+                if (no_brightness_change) {
+                    memcpy(dstRowPtr + static_cast<size_t>(x) * 4, srcRow + static_cast<size_t>(srcX) * 4, 4);
+                    continue;
+                }
+
+                const uint8_t sR = srcRow[srcX * 4 + 0];
+                const uint8_t sG = srcRow[srcX * 4 + 1];
+                const uint8_t sB = srcRow[srcX * 4 + 2];
+                const uint8_t sA = srcRow[srcX * 4 + 3];
+
+                uint8_t dR = static_cast<uint8_t>(std::min(255, static_cast<int>(sR * screen.brightness + 0.5f)));
+                uint8_t dG = static_cast<uint8_t>(std::min(255, static_cast<int>(sG * screen.brightness + 0.5f)));
+                uint8_t dB = static_cast<uint8_t>(std::min(255, static_cast<int>(sB * screen.brightness + 0.5f)));
+
+                dstRowPtr[x * 4 + 0] = dR;
+                dstRowPtr[x * 4 + 1] = dG;
+                dstRowPtr[x * 4 + 2] = dB;
+                dstRowPtr[x * 4 + 3] = sA;
             }
         }
 
