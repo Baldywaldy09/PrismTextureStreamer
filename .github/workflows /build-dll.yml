@@ -1,0 +1,106 @@
+name: Build DLL (Windows x64)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Proje SADECE x64'te DynamicLibrary. Win32 konfigurasyonlari EXE ve include/lib yollari tanimsiz -> derlenmez.
+        # The project is x64-only (DynamicLibrary). Win32 configurations are set to EXE, and include/lib paths are undefined -> it will not compile.
+        configuration: [Release]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Runner uzerindeki en yeni Windows SDK'yi bul
+        shell: pwsh
+        run: |
+          $inc = "C:\Program Files (x86)\Windows Kits\10\Include"
+          $sdks = Get-ChildItem $inc -Directory |
+                  Where-Object { $_.Name -match '^10\.\d+\.\d+\.\d+$' } |
+                  Sort-Object { [version]$_.Name }
+          if (-not $sdks) { throw "Windows 10 SDK bulunamadi: $inc" }
+          Write-Host "Bulunan SDK'lar:"
+          $sdks | ForEach-Object { Write-Host "  $($_.Name)" }
+          $latest = $sdks[-1].Name
+          Write-Host "Kullanilacak: $latest"
+          "WINSDK=$latest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: CI props olustur
+        shell: pwsh
+        run: |
+          @'
+          <Project>
+            <ItemDefinitionGroup>
+              <ClCompile>
+                <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+              </ClCompile>
+              <Link>
+                <AdditionalDependencies>windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+              </Link>
+            </ItemDefinitionGroup>
+          </Project>
+          '@ | Set-Content -Path "$pwd\ci_fixes.props" -Encoding UTF8
+          Get-Content "$pwd\ci_fixes.props"
+
+      - name: Ortam bilgisi
+        shell: pwsh
+        run: |
+          msbuild -version
+          Get-ChildItem Lib
+
+      - name: Build (x64)
+        shell: pwsh
+        run: |
+          msbuild PrismTextureStreamerFB.sln `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=x64 `
+            /p:WindowsTargetPlatformVersion=$env:WINSDK `
+            /p:ForceImportBeforeCppTargets="$pwd\ci_fixes.props" `
+            /p:PostBuildEventUseInBuild=false `
+            /p:OutDir="$pwd\artifacts\" `
+            /v:normal `
+            /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Cikti kontrolu
+        shell: pwsh
+        run: |
+          Get-ChildItem artifacts -Recurse | Select-Object Name, Length
+          if (-not (Test-Path "artifacts\PrismTextureStreamerFB.dll")) {
+            throw "DLL uretilmedi!"
+          }
+          # SCS eklentisi olarak yuklenebilmesi icin export'lar sart
+          # Exports are required for SCS to be installed as a plugin.
+          $dumpbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" -ErrorAction SilentlyContinue |
+                     Select-Object -First 1
+          if ($dumpbin) {
+            $exports = & $dumpbin.FullName /EXPORTS "artifacts\PrismTextureStreamerFB.dll"
+            $exports | Select-String "scs_telemetry"
+            if (-not ($exports -match "scs_telemetry_init")) {
+              throw "scs_telemetry_init export'u bulunamadi!"
+            }
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrismTextureStreamerFB-${{ matrix.configuration }}-x64
+          path: |
+            artifacts/*.dll
+            artifacts/*.pdb
+          if-no-files-found: error
