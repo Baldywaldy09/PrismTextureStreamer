@@ -8,14 +8,17 @@
 
 #pragma pack(push, 1)
 namespace prism {
+    // Each part logs its own failure; a failure in one must not skip the other.
     inline bool init() {
+        bool ok = true;
+
         if (!execute_command::get())
-            return false;
+            ok = false;
 
         if (!memserver_texture_queue::init())
-            return false;
+            ok = false;
 
-        return true;
+        return ok;
     }
 
 	class string_dyn_t // Size: 0x0020
