@@ -25,6 +25,90 @@ using namespace scs_logging;
 
 
 
+namespace
+{
+    // A conditional jump in the game's in-cab screen renderer that we flip to an
+    // unconditional jump, so the game stops drawing over our replaced texture.
+    struct jump_patch_t
+    {
+        const char* name;
+        const char* pattern;
+        int64_t     offset;       // from pattern start to the jump instruction
+        uint8_t     original[2];  // bytes of the conditional jump (unpatched)
+        uint8_t     patched[2];   // bytes of the unconditional jump (patched)
+        size_t      length;       // number of bytes to swap (1 or 2)
+
+        uintptr_t   address = 0;
+        bool        failed  = false;
+    };
+
+    // Each patch keeps the jump displacement, only the opcode bytes change:
+    //   near: 0F 84 rel32 (je)  ->  90 E9 rel32 (nop; jmp)  - same target
+    //   short: 74 rel8    (je)  ->  EB rel8     (jmp)       - same target
+    jump_patch_t g_gps_patch{
+        "gps", "49 8B 96 ?? ?? ?? ?? 48 85 D2 0F 84 ?? ?? ?? ?? 4D 8B 86", 10,
+        { 0x0F, 0x84 }, { 0x90, 0xE9 }, 2 };
+
+    jump_patch_t g_dash_patch{
+        "dashboard", "4C 8D 3D ?? ?? ?? ?? 48 85 D2 0F 84", 10,
+        { 0x0F, 0x84 }, { 0x90, 0xE9 }, 2 };
+
+    // 1.61 and older: "0F 84 ?? ?? ?? ?? 45 84 E4 4D 0F 45 FD" (near je)
+    // 1.62: the compiler emits a short je here instead
+    jump_patch_t g_custom_patch{
+        "custom", "74 ?? 45 84 E4 4D 0F 45 FD", 0,
+        { 0x74 }, { 0xEB }, 1 };
+
+    bool resolve_patch(jump_patch_t& patch)
+    {
+        if (patch.address) return true;
+        if (patch.failed) return false;
+
+        const uintptr_t hit = bmem::patternScan(patch.pattern);
+        if (!hit) {
+            scs_log(SCS_LOG_TYPE_error, "[patch] '%s': pattern not found, patch disabled (unsupported game version?)", patch.name);
+            patch.failed = true;
+            return false;
+        }
+
+        const uintptr_t address = hit + patch.offset;
+        const bool is_original = memcmp(reinterpret_cast<void*>(address), patch.original, patch.length) == 0;
+        const bool is_patched = memcmp(reinterpret_cast<void*>(address), patch.patched, patch.length) == 0;
+        if (!is_original && !is_patched) {
+            scs_log(SCS_LOG_TYPE_error, "[patch] '%s': unexpected bytes at eurotrucks2.exe+0x%llX, patch disabled",
+                patch.name, static_cast<unsigned long long>(address - bmem::moduleBase));
+            patch.failed = true;
+            return false;
+        }
+
+        patch.address = address;
+        scs_log(SCS_LOG_TYPE_message, "[patch] '%s' found at eurotrucks2.exe+0x%llX",
+            patch.name, static_cast<unsigned long long>(address - bmem::moduleBase));
+        return true;
+    }
+
+    void set_patch(jump_patch_t& patch, bool enable)
+    {
+        if (!resolve_patch(patch))
+            return;
+
+        void* target = reinterpret_cast<void*>(patch.address);
+
+        DWORD oldProtect;
+        if (!VirtualProtect(target, patch.length, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            scs_log(SCS_LOG_TYPE_error, "[patch] '%s': VirtualProtect failed (%lu), patch disabled", patch.name, GetLastError());
+            patch.failed = true;
+            patch.address = 0;
+            return;
+        }
+
+        memcpy(target, enable ? patch.patched : patch.original, patch.length);
+
+        VirtualProtect(target, patch.length, oldProtect, &oldProtect);
+        FlushInstructionCache(GetCurrentProcess(), target, patch.length);
+    }
+}
+
 SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info, scs_context_t context)
 {
     static bool gps_patched{};
@@ -50,79 +134,19 @@ SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info
 
     if (has_gps != gps_patched)
     {
-        static uint64_t patch_addr{};
-        if (!patch_addr) {
-            patch_addr = bmem::patternScan("49 8B 96 ?? ?? ?? ?? 48 85 D2 0F 84 ?? ?? ?? ?? 4D 8B 86") + 10;
-        }
-
-        DWORD oldProtect;
-        VirtualProtect((void*)patch_addr, 2, PAGE_EXECUTE_READWRITE, &oldProtect);
-
-        if (has_gps) {
-            // JMP
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x90;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0xE9;
-        }
-        else {
-            // JE
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x0F;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0x84;
-        }
-
-        VirtualProtect((void*)patch_addr, 2, oldProtect, &oldProtect);
-
+        set_patch(g_gps_patch, has_gps);
         gps_patched = has_gps;
     }
 
     if (has_dash != dash_patched)
     {
-        static uint64_t patch_addr{};
-        if (!patch_addr) {
-            patch_addr = bmem::patternScan("4C 8D 3D ?? ?? ?? ?? 48 85 D2 0F 84") + 10;
-        }
-
-        DWORD oldProtect;
-        VirtualProtect((void*)patch_addr, 2, PAGE_EXECUTE_READWRITE, &oldProtect);
-
-        if (has_dash) {
-            // JMP
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x90;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0xE9;
-        }
-        else {
-            // JE
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x0F;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0x84;
-        }
-
-        VirtualProtect((void*)patch_addr, 2, oldProtect, &oldProtect);
-
+        set_patch(g_dash_patch, has_dash);
         dash_patched = has_dash;
     }
 
     if (has_custom != custom_patched)
     {
-        static uint64_t patch_addr{};
-        if (!patch_addr) {
-            patch_addr = bmem::patternScan("0F 84 ?? ?? ?? ?? 45 84 E4 4D 0F 45 FD");
-        }
-
-        DWORD oldProtect;
-        VirtualProtect((void*)patch_addr, 2, PAGE_EXECUTE_READWRITE, &oldProtect);
-
-        if (has_custom) {
-            // JMP
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x90;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0xE9;
-        }
-        else {
-            // JE
-            *(reinterpret_cast<uint8_t*>(patch_addr + 0)) = 0x0F;
-            *(reinterpret_cast<uint8_t*>(patch_addr + 1)) = 0x84;
-        }
-
-        VirtualProtect((void*)patch_addr, 2, oldProtect, &oldProtect);
-
+        set_patch(g_custom_patch, has_custom);
         custom_patched = has_custom;
     }
 }
@@ -148,7 +172,8 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     dx11::init();
 
     scs_log(0, "Starting Prism3D hooks...");
-    prism::init();
+    if (!prism::init())
+        scs_log(SCS_LOG_TYPE_error, "Some Prism3D hooks failed to initialize, see errors above");
 
     scs_log(0, "Starting Menu GUI...");
     Gui::init();
